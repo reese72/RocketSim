@@ -2,9 +2,7 @@
 
 import math
 
-
-
-# Define the initial conditions
+# Rocket Parameters
 Stage1_area = 0.0027  # m^2
 drag_coefficient = 0.85  # drag coefficient of the rocket
 
@@ -12,36 +10,37 @@ fuel_mass = 0.020  # kg
 payload_mass = 0.0  # kg, 1190 grams of payload (the second stage)
 misc_mass = 0.0  # kg, miscellaneous bits of extra mass, fuel tubes, nozzles, etc...
 body_mass = 0.22  # kg, mass of the body of the rocket
-
-impulse = 30  # The total impulse of the engine, Ns
-
-t = 0  # time, s
-vx = 0  # velocity on the X-Axis, m/s
-vz = 0  # velocity on the Z-Axis, m/s
-tilt = 0  # tilt of the rocket, degrees
-h = 0  # height, m
-dx = 0  # distance on the X-Axis, m
-stage1_loss_percentage = 0  # percent of impulse lost to inefficiencies (good for approximating misc. losses)
-rocket_temp = 0  # temperature of rocket
-gravity = 9.81  # m/s^2
-dt = 0.0001  # time step, s
-height_offset = 250  # starting altitude above sea level
-wind_speed = 1  # wind speed, m/s
-rail_length = 1  # length of the launch rail, m
-forced_tilt = 0  # the tilt of the rocket forced by the launch rail, degrees
 fin_coefficient = 0.01
-output_frequency = 1000
+
+impulse = 20  # The total impulse of the engine, Ns
 
 Parachute_delay = 8.7  # Delay between motor ignition and parachute deployment, s
 Parachute_drag_coefficient = 4.05
 Parachute_area = 0.027
 
+stage1_loss_percentage = 0  # percent of impulse lost to inefficiencies (good for approximating misc. losses)
+
+#Stage 0 Parameters
+rail_length = 1  # length of the launch rail, m
+forced_tilt = 0  # the tilt of the rocket forced by the launch rail, degrees
+h = 0  # height, m
 
 
-
+#Simulation Parameters
+gravity = 9.81  # m/s^2
+dt = 0.0001  # time step, s
+height_offset = 250  # starting altitude above sea level
+wind_speed = 1  # wind speed, m/s
+output_frequency = 1000
 
 
 #  Misc. variables
+t = 0  # time, s
+vx = 0  # velocity on the X-Axis, m/s
+vz = 0  # velocity on the Z-Axis, m/s
+tilt = 0  # tilt of the rocket, degrees
+dx = 0  # distance on the X-Axis, m
+rocket_temp = 0  # temperature of rocket
 payload_mass += misc_mass
 payload_mass += body_mass
 total_mass = payload_mass  # kg
@@ -72,22 +71,11 @@ mtpa = 0  # altitude of max temperature, m
 ma = 0  # max acceleration, m/s^2
 ter = 0  # time of engine run-out, s
 pd = 0  # peak drag, N
-loop = False
 drag_force = 0  # N
 Deployed = False
 Jolt_Force = 0  # N
 
 print("Total mass: " + str(total_mass) + " kg")
-
-
-
-
-
-
-
-
-
-
 
 
 # Define functions
@@ -152,24 +140,9 @@ def D12(time):
         return 0
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # the main loop is defined, where all the main physics is done
 while h >= 0:
-    Ns = D12(t)  # calculate the thrust of the rocket at the current time
+    N = D12(t)  # calculate the thrust of the rocket at the current time
 
     counter += 1
 
@@ -178,18 +151,16 @@ while h >= 0:
     wind_speed = wind(h, sea_level_speed)
 
     if forced_tilt == 0:
-        # calculate the tilt of the rocket
         if h > rail_length:
             tilt = tilt2(wind_speed, vz)
-        if tilt > max_tilt:
-            max_tilt = tilt
+        max_tilt = max(max_tilt, tilt)
         tilt = max_tilt
     else:
         tilt = forced_tilt
 
     # find the x velocity of the rocket
     if impulse > 0:
-        vx += math.sin(math.radians(tilt)) * (Ns / total_mass) * dt
+        vx += math.sin(math.radians(tilt)) * (N / total_mass) * dt
 
     # calculate the distance the rocket has traveled
     dx += (vx * dt)
@@ -199,10 +170,10 @@ while h >= 0:
 
     # calculate for the rocket engine spending fuel
     if impulse > 0:  # if the rocket has fuel, subtract the fuel
-        impulse = impulse - Ns * dt
+        impulse = impulse - N * dt
         fuel_mass = starting_fuel_mass * (impulse / start_impulse)  # calculate the fuel mass
         total_mass = fuel_mass + payload_mass
-        vz = vz + ((Ns / total_mass) * dt) * z_percent  # calculate the velocity
+        vz = vz + ((N / total_mass) * dt) * z_percent  # calculate the velocity
 
 
     if impulse < 0:  # fix a bug where the impulse would go under 0
@@ -252,9 +223,9 @@ while h >= 0:
               "Distance:", str(int(dx)) + "m (" + "{:.1f}".format(dx * 3.28) + "ft)", "Fin Authority:", "{:.1f}".format(fin_authority * 50) + "%")
 
         if impulse > 0:  # Calculate the Thrust to Weight Ratio
-            print("TWR:", "{:.2f}".format((Ns / (total_mass * gravity))), "Theoretical Acceleration:",
-                  "{:.1f}".format(((Ns / total_mass) - 9.8)) + "m/s^2", "True Acceleration:",
-                  "{:.1f}".format((((Ns - drag_force_N) / total_mass) - 9.8)) + "m/s^2")
+            print("TWR:", "{:.2f}".format((N / (total_mass * gravity))), "Theoretical Acceleration:",
+                  "{:.1f}".format(((N / total_mass) - 9.8)) + "m/s^2", "True Acceleration:",
+                  "{:.1f}".format((((N - drag_force_N) / total_mass) - 9.8)) + "m/s^2")
         if impulse == 0:  # If the rocket is out of fuel, then there will be no thrust
             print("TWR: 0", "Theoretical Acceleration: 0m/s^2", "True Acceleration: 0m/s^2")
         counter = 0
@@ -274,9 +245,8 @@ while h >= 0:
 
 
     # find time of engine run-out
-    if (impulse < 1 and loop == False):
+    if (impulse < 1 and ter == 0):
         ter = t
-        loop = True
     # find the max altitude
     if h > hm:  # if the current height is greater than the max height, set the max height to the current height
         hm = h
@@ -296,8 +266,8 @@ while h >= 0:
         pmva = density
         tmv = rocket_temp
 
-    if (((Ns - drag_force_N) / total_mass) - 9.8) > pa:
-        pa = (((Ns - drag_force_N) / total_mass) - 9.8)
+    if (((N - drag_force_N) / total_mass) - 9.8) > pa:
+        pa = (((N - drag_force_N) / total_mass) - 9.8)
         pat = t
 
     if t >= Parachute_delay:
